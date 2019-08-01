@@ -5,10 +5,9 @@
 float error;
 float preError=0;	//previous error
 float kp,kd,x,y;	//x and y are coordinate 
-float steer=0;	//pid value 
-float angle;	//angle between x axis and required point
+float tError=0;	//pid value 
 float rVelocity=0, lVelocity=0;	//left wheel velocity and right wheel velocity
-float reqAngle, presentAngle;	
+float reqAngle, presentAngle;	// required angle is angle between x axis and required point
 int turn;	
 #define PI 3.141592654
 
@@ -32,33 +31,33 @@ int main()
 		
 		
 	while (1)
-	{	
-		 
-		  
-		angle = atan(y/x);
-		angle = (angle * 180) / PI;
-	
-		
-		error=reqAngle-presentAngle;
-		
-		steer=(kp*error)+(kd*(preError- error));
-		preError=error;
-		if ((baseVelocity+steer)>max )
-		{
-			lVelocity= max;	
-		}
-		if ((baseVelocity-steer)>max )
-		{
-			rVelocity= max;
-		}
-		lVelocity= baseVelocity+steer;
-		rVelocity=baseVelocity-steer;
+	{	 reqAngle = atan(y/x);
+		reqAngle = (reqAngle * 180) / PI;
+		tError=totError(reqAngle,presentAngle);
+		lVelocity= baseVelocity+tError;
+		rVelocity=baseVelocity-tError;
 		
 		OCR1B = (lVelocity*10000)/200;
 		OCR3C = (rVelocity*10000)/200;
 	
 	}
-	return 0;
+	
 }
-
+float totError(float reqAngle,float presentAngle)
+ {
+	 float e;
+	 error=reqAngle-presentAngle;
+	 e=(kp*error)+(kd*(preError- error));
+	 preError=error;
+	if(e>50)
+	{
+		e=50;
+	}
+	else if (e<-50)
+	{
+		e=-50;
+	}
+	return e;
+ }
+ 
  
