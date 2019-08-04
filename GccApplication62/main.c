@@ -13,176 +13,114 @@ int init;
 int a=0,b=0;
 char snum[5];
 char d;
+int overFlow=0;
+#define max 200;		//max velocity of bot
+#define baseVelocity 150;	//define base velocity for bot
+float error;
+float preError=0;	//previous error
+float kp,kd,x,y;	//x and y are coordinate
+float tError=0;	//pid value
+float totError(float,float);
+float rVelocity=0, lVelocity=0;	//left wheel velocity and right wheel velocity
+float reqAngle, presentAngle;	// required angle is angle between x axis and required point
+int turn;
+#define PI 3.141592654
+
 
 // define some macros
-#define BAUDrate 9600 
+//#define BAUDrate 9600
 #define F_CPU 8000000UL                                 // define baud
 #define ubrr 51
-//char string1[10];
-// function to initialize UART
-void uart_init (int baud)
-{   // to establish uart 0
-	UBRR0H = (unsigned char)(baud>>8);                      // shift the register right by 8 bits
-	UBRR0L =(unsigned char) baud;                           // set baud rate
-	UCSR0B |= (1<<RXEN0)|(1<<TXEN0);                     // 4 rxen and 3 txen
-	
-	               // enable receiver and transmitter
-	UCSR0C=0b10000110;
-	
-	 /* // to establish uart 1
-	UBRR1H = (unsigned char)(baud>>8);                      // shift the register right by 8 bits
-	UBRR1L =(unsigned char) baud;                           // set baud rate
-	UCSR1B |= (1<<RXEN1)|(1 << TXEN1); 
-	// enable receiver and transmitter
-	UCSR1C=0b10000110;   // 8bit data format*/
-}
 
 
-
-// function to send data
-void USART_Transmit( unsigned char data )
-
+int main(void)
 {
-
-	/* Wait for empty transmit buffer */
-
-	while ( !( UCSR0A & (1<<UDRE0)) );
-	
-	
-	
-	
-		UDR0 = data;
-		//_delay_ms(10);
-	
-}
-
-	// function to receive data
-
-
-unsigned char USART_Receive( void )
-
-{
-
-	// Wait for data to be received 
-
-	while ( !(UCSR0A & (1<<RXC0)) );
-
-	 ///Get and return received data from buffer 
-	
-	return UDR0;
-
-}
-/*void USART_Receive_String(char *string)
-{	
-		int i=100;
-		while(i)
-		{
-			*string=USART_Receive();
-			if(*string==i)
-			break;
-			string++;
-			i--;
-		}
-}
-*/
-void clearstring(char *string)
-{
-	memset(string,0,strlen(string));
-}
-
-
-
-
-void usart_transmit_string(char *str)
-{
-	while(*str > 0)	
-	{
-		USART_Transmit(*str);
-		str++;
-		_delay_us(100);
-	}
-}
-
- 
-
-int main()
-{ 
-	sei(); //CALLING INTERRUPT VECTOR
-	 // char str[10], 
-	//char str1[100];
-	//int i=0;
-	uart_init(51);
-	//char a;
-	
 	DDRD &= ~(1<<PD5); //INPUT B		PIN D5
 	DDRD &= ~(1<<PD2); //INPUT B		PIN D2
-	//DDRD |= (1<<PD5);		//PIN D5 FOR led 5
-	
-//	DDRD |= (1<<PD7);		//PIN D7 for led 7
-    TCCR1B |= (1<<CS11); // pre scaling 8
-	TCNT1=53035;		//initial point of count 
-	TIMSK |= (1<<TOIE1);	//Timer overflow interrupt enable
 
-
-	EIMSK |= (1<<INT0);  //ENABLING INTERRUPT Right wheel INPUT A	PIN D0
-	EICRA |= (1<<ISC00) ; //calling interrupt at Logic change
 	
-	EIMSK |= (1<<INT3);  //ENABLING INTERRUPT Left wheel INPUT A	PIN D3
-	EICRA |= (1<<ISC30) ; //calling interrupt at Logic change
-	
-	/* Replace with your application code */
-	
-//	init=bit_is_clear(PIND,2);
-
-	while(1)
-	{	 
-		
-		
-	
-	}
-	return 0;
+	TCCR2 |= (1<<CS22) | (1<<CS21);	//pre scaling of 1024
+	TIMSK |= (1<<TOIE2);	//Timer overflow interrupt enable
+	 EIMSK |= (1<<INT0);  //ENABLING INTERRUPT Right wheel INPUT A	PIN D0
+	 EICRA |= (1<<ISC00) ; //calling interrupt at Logic change
+	 
+	 EIMSK |= (1<<INT3);  //ENABLING INTERRUPT Left wheel INPUT A	PIN D3tcn
+	 EICRA |= (1<<ISC30) ; //calling interrupt at Logic change
+	 sei(); //CALLING INTERRUPT VECTOR
+	 
+	 DDRE |=	(1<<PE5);
+	 DDRB |=	(1<<PB6);
+	 
+	 TCCR1A |= (1<<COM1B1) | (1<<WGM11);	//TIMER 1 fast pwm NON inverting	ICR1
+	 TCCR1B |= (1<<WGM13) | (1<<WGM12);
+	 
+	 TCCR3A |= (1<<COM3C1) | (1<<WGM31);	//TIMER 3 fast pwm non inverting	ICR3
+	 TCCR3B |= (1<<WGM33) | (1<<WGM32);
+	 
+	 ICR1 = 10000;
+	 ICR3 = 10000;
+	 
+	 
+    /* Replace with your application code */
+    while (1) 
+    {
+		 reqAngle = atan(y/x);
+		 reqAngle = (reqAngle * 180) / PI;
+		 tError=totError(reqAngle,presentAngle);
+		 lVelocity= baseVelocity+tError;
+		 rVelocity=baseVelocity-tError;
+		 
+		 OCR1B = (lVelocity*10000)/200;
+		 OCR3C = (rVelocity*10000)/200;
+		 
+    }
 }
 
-ISR(TIMER1_OVF_vect)
+ISR(TIMER2_OVF_vect)
 {
-	TCNT1=53035;
-	a= countl;b=countr;
-	countr=0;
-	countl=0;
-	d_theta = (a-b)*lcofangle;                                                   // calculating d_theta
-	
-	x+=(a+b)*sin(d_theta/2)*lcofdist*sin(theta + (d_theta/2))/d_theta;           // incrementing in x
-	
-	y+=(a+b)*sin(d_theta/2)*lcofdist*cos(theta + (d_theta/2))/d_theta;			// incrementing in y
-	
-	theta+=d_theta;
+	overFlow++;
+	if (overFlow==3)
+	{
+		a= countl;b=countr;
+		countr=0;
+		countl=0;
+		
+		d_theta = (a-b)*lcofangle;                                                   // calculating d_theta
+		
+		x+=(a+b)*sin(d_theta/2)*lcofdist*sin(theta + (d_theta/2))/d_theta;           // incrementing in x
+		
+		y+=(a+b)*sin(d_theta/2)*lcofdist*cos(theta + (d_theta/2))/d_theta;			// incrementing in y
+		
+		theta+=d_theta;
+		overFlow=0;
+	}
 }
 ISR(INT1_vect)
 {
-		right_channelB =bit_is_set(PIND,2);
-		right_channelA =bit_is_set(PIND,0);
+	right_channelB =bit_is_set(PIND,2);
+	right_channelA =bit_is_set(PIND,0);
+	
+	if(right_channelA==right_channelB)		//clockwise
+	{
+		countr++;
 		
-		if(right_channelA==right_channelB)		//clockwise
-		{
-			countr++;
-			
-			
-		}
-		//anticlockwise
-		else if(right_channelA!=right_channelB)
-		{
-			countr--;
-			
-			
-		}
 		
+	}
+	//anticlockwise
+	else if(right_channelA!=right_channelB)
+	{
+		countr--;
+		
+		
+	}
+	
 
 	// convert 123 to string [buf]
-	/*itoa(count, snum, 10);
+	/*itoa(countr, snum, 10);
 	usart_transmit_string(snum);
-	USART_Transmit("__");*/
-	//_delay_ms(1000);
-	//clearstring(sn	um);
+	USART_Transmit("__");
+	_delay_ms(1000);
+	clearstring(snum);*/
 }
 ISR(INT0_vect)
 {
@@ -205,9 +143,26 @@ ISR(INT0_vect)
 	
 
 	
-	/*itoa(count, snum, 10);
+	/*itoa(countl, snum, 10);
 	usart_transmit_string(snum);
 	USART_Transmit("__");
-	clearstring(snum);
-	*/
+	clearstring(snum);*/
+	
+}
+
+float totError(float reqAngle,float presentAngle)
+{
+	float e;
+	error=reqAngle-presentAngle;
+	e=(kp*error)+(kd*(preError- error));
+	preError=error;
+	if(e>50)
+	{
+		e=50;
+	}
+	else if (e<-50)
+	{
+		e=-50;
+	}
+	return e;
 }
